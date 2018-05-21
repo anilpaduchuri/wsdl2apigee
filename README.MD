@@ -35,6 +35,7 @@ basepath=Uses the basepath from the wsdl
 cors=false                Don't enable CORS; Works only for SOAP to REST
 build=specify build folder   default is temp folder; ensure user has access to read/write to temp folder
 opsmap=specify operations map
+allowEmptyNodes=false     allow empty nodes in SOAP request while sending to target endpoint <-allowEmptyNodes=true>.
 ``` 
 ## Output
 You should see an API Proxy bundle generated in the same folder you ran the command. The bundle follows the convention of
