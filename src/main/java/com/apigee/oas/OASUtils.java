@@ -103,6 +103,7 @@ public class OASUtils {
 		object.addProperty("$ref", "#/definitions/"+objectName);
 		properties.add(objectName, object);
 	}
+	
 	public static void addObject(JsonObject parent, String parentName, String objectName,boolean isChildComplexType, String qNameLocal) {
 		JsonObject properties = parent.getAsJsonObject("properties");
 		JsonObject object = new JsonObject();
@@ -117,38 +118,8 @@ public class OASUtils {
 		JsonObject complexType = new JsonObject();
 		JsonObject properties = new JsonObject();
 		JsonObject items = new JsonObject();
-		LOGGER.info("ELEMENT NAME=="+name);
+		
 		items.addProperty("$ref", "#/definitions/"+name);
-		
-		Integer maximum = 0;
-		
-		if (max.equalsIgnoreCase("unbounded")) {
-			maximum = -1;
-		} else {
-			maximum = Integer.parseInt(max);
-		}
-		
-		Integer minimum = Integer.parseInt(min);
-
-		complexType.add("properties", properties);
-
-		if (maximum == -1 || maximum > 1) {
-			complexType.addProperty("type", "array");
-			//in json schemas, if the elements are unbounded, don't set maxItems
-			if (maximum != -1) complexType.addProperty("maxItems", maximum);
-			complexType.addProperty("minItems", minimum);
-			complexType.add("items", items);
-		} else {
-			complexType.addProperty("type", "object");
-		}
-		return complexType;
-	}
-	public static JsonObject createComplexType(String name, String min, String max, String parentName) {
-		JsonObject complexType = new JsonObject();
-		JsonObject properties = new JsonObject();
-		JsonObject items = new JsonObject();
-		LOGGER.info("ELEMENT NAME=="+name);
-		items.addProperty("$ref", "#/definitions/"+ parentName + "_" + name);
 		
 		Integer maximum = 0;
 		
