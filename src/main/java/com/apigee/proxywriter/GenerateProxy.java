@@ -147,6 +147,9 @@ public class GenerateProxy {
 	private boolean ALLPOST;
 	// set this to true if oauth should be added to the proxy
 	private boolean OAUTH;
+	// set this to true if allowEmptyNodes should be added to the proxy
+	private boolean ALLOW_EMPTY_NODES;
+
 	// set this to true if apikey should be added to the proxy
 	private boolean APIKEY;
 	// enable this flag if api key based quota is enabled
@@ -244,6 +247,7 @@ public class GenerateProxy {
 		ALLPOST = false;
 		PASSTHRU = false;
 		OAUTH = false;
+		ALLOW_EMPTY_NODES = false;
 		APIKEY = false;
 		QUOTAAPIKEY = false;
 		QUOTAOAUTH = false;
@@ -319,6 +323,10 @@ public class GenerateProxy {
 
 	public void setOAuth(boolean oauth) {
 		OAUTH = oauth;
+	}
+
+	public void setAllowEmptyNodes(boolean allowEmptyNodes) {
+		ALLOW_EMPTY_NODES = allowEmptyNodes;
 	}
 
 	public String getTargetEndpoint() {
@@ -637,15 +645,18 @@ public class GenerateProxy {
 				step2.appendChild(name2);
 				request.appendChild(step2);
 
-				if (apiMap.getJsonBody() != null) {
-					step3 = proxyDefault.createElement("Step");
-					name3 = proxyDefault.createElement("Name");
-					name3.setTextContent("remove-empty-nodes");
-					Node condition3 = proxyDefault.createElement("Condition");
-					condition3.setTextContent("(verb == \"GET\")");
-					step3.appendChild(name3);
-					step3.appendChild(condition3);
-					request.appendChild(step3);
+				//when ALLOW_EMPTY_NODES is true,  "remove-empty-nodes" policy will not be added in GET flows.
+				if(!ALLOW_EMPTY_NODES) {
+					if (apiMap.getJsonBody() != null) {
+						step3 = proxyDefault.createElement("Step");
+						name3 = proxyDefault.createElement("Name");
+						name3.setTextContent("remove-empty-nodes");
+						Node condition3 = proxyDefault.createElement("Condition");
+						condition3.setTextContent("(verb == \"GET\")");
+						step3.appendChild(name3);
+						step3.appendChild(condition3);
+						request.appendChild(step3);
+					}
 				}
 
 				LOGGER.fine("Assign Message: " + buildSOAPPolicy);
@@ -1501,7 +1512,7 @@ public class GenerateProxy {
 				JsonObject complexType = OASUtils.createComplexType(element.getName(), element.getMinOccurs(),
 						element.getMaxOccurs());
 				OASUtils.addObject(parent, parentName, element.getName());
-				definitions.add(element.getName(), complexType);
+				definitions.add(parentName + "_" + element.getName(), complexType);
 				parseSchema(element, schemas, element.getName(), complexType);
 			} else {
 				// TODO: handle this
@@ -1510,18 +1521,20 @@ public class GenerateProxy {
 		} else {
 			if (e.getEmbeddedType() instanceof ComplexType) {
 				ComplexType ct = (ComplexType) e.getEmbeddedType();
+				LOGGER.info("parseElement && e.getEmbeddedType() instanceof ComplexType");
 				JsonObject rootElement = OASUtils.createComplexType(e.getName(), e.getMinOccurs(), e.getMaxOccurs());
 				OASUtils.addObject(parent, parentName, e.getName());
-				definitions.add(e.getName(), rootElement);
+				definitions.add(parentName + "_" + e.getName(), rootElement);
 				parseSchema(ct.getModel(), schemas, e.getName(), rootElement);
 			} else if (e.getType() != null) {
 				TypeDefinition typeDefinition = getTypeFromSchema(e.getType(), schemas);
 				if (typeDefinition instanceof ComplexType) {
 					ComplexType ct = (ComplexType) typeDefinition;
+					LOGGER.info("parseElement && e.getType() != null");
 					JsonObject rootElement = OASUtils.createComplexType(e.getName(), e.getMinOccurs(),
 							e.getMaxOccurs());
-					OASUtils.addObject(parent, parentName, e.getName());
-					definitions.add(e.getName(), rootElement);
+					OASUtils.addObject(parent, parentName, e.getName(), true,e.getType().getLocalPart());
+					definitions.add(e.getType().getLocalPart(), rootElement);
 					parseSchema(ct.getModel(), schemas, e.getName(), rootElement);
 				}
 			}
@@ -1602,6 +1615,7 @@ public class GenerateProxy {
 				if (e.getType() != null) {
 					if (isPrimitive(e.getType().getLocalPart())) {
 						if (rootElement == null) {
+							LOGGER.info("In sequence && isPrimitive(e.getType().getLocalPart())");
 							rootElement = OASUtils.createComplexType(e.getName(), e.getMinOccurs(), e.getMaxOccurs());
 							rootElementName = e.getName();
 							definitions.add(e.getName(), rootElement);
@@ -1623,6 +1637,7 @@ public class GenerateProxy {
 				if (e.getType() != null) {
 					if (isPrimitive(e.getType().getLocalPart())) {
 						if (rootElement == null) {
+							LOGGER.info("In Choice && isPrimitive(e.getType().getLocalPart())");
 							rootElement = OASUtils.createComplexType(e.getName(), e.getMinOccurs(), e.getMaxOccurs());
 							rootElementName = e.getName();
 							definitions.add(e.getName(), rootElement);
@@ -1643,6 +1658,7 @@ public class GenerateProxy {
 			if (derivation != null) {
 				TypeDefinition typeDefinition = getTypeFromSchema(derivation.getBase(), schemas);
 				if (typeDefinition instanceof ComplexType) {
+					LOGGER.info("In ComplexContent && typeDefinition instanceof ComplexType");
 					String name = ((ComplexType) typeDefinition).getName();
 					JsonObject complexType = OASUtils.createComplexType(name, "0", "1");
 					parseSchema(((ComplexType) typeDefinition).getModel(), schemas, name, complexType);
@@ -1669,6 +1685,7 @@ public class GenerateProxy {
 				parseElement(e, schemas, rootElement, rootElementName);
 			}
 		}
+		//LOGGER.info("definitions=="+definitions);
 	}
 
 	private void parseSchema(SchemaComponent sc, List<Schema> schemas, String rootElement, String rootNamespace,
@@ -1794,6 +1811,7 @@ public class GenerateProxy {
 	private void parseParts(List<Part> parts, List<Schema> schemas, String rootElementName, JsonObject rootElement) {
 		for (Part part : parts) {
 			if (rootElement == null) {
+				LOGGER.info("In parseParts && rootElement == null");
 				rootElement = OASUtils.createComplexType(part.getName(), "0", "1");
 				rootElementName = part.getName();
 				definitions.add(part.getName(), rootElement);
@@ -2285,7 +2303,9 @@ public class GenerateProxy {
 			}
 			if (typeDefinition instanceof ComplexType) {
 				ComplexType ct = (ComplexType) typeDefinition;
+				LOGGER.info("getOASDefinitions && typeDefinition instanceof ComplexType");
 				JsonObject rootElement = OASUtils.createComplexType(e.getName(), e.getMinOccurs(), e.getMaxOccurs());
+				//LOGGER.info("element name=="+e.getName()+", rootElement=="+rootElement);
 				definitions.add(e.getName(), rootElement);
 				parseSchema(ct.getModel(), wsdl.getSchemas(), e.getName(), rootElement);
 			}
@@ -2626,7 +2646,7 @@ public class GenerateProxy {
 		String verb = "";
 
 		definitions = oasObject.getAsJsonObject("definitions");
-
+		LOGGER.info("definitions=="+definitions);
 		info.addProperty("title", proxyName);
 		oasObject.addProperty("host", "@request.header.host#");
 		oasObject.addProperty("basePath", basePath);
@@ -2704,6 +2724,7 @@ public class GenerateProxy {
 			} else {
 				paths.add(resourcePath, operation);
 			}
+			//LOGGER.info("definitions=="+definitions);
 		}
 
         final Gson gson = new GsonBuilder().setPrettyPrinting().create();
@@ -2886,6 +2907,7 @@ public class GenerateProxy {
 		System.out.println("-basepath=specify base path");
 		System.out.println("-cors=<true|false>        default is false");
 		System.out.println("-debug=<true|false>       default is false");
+		System.out.println("-allowEmptyNode=<true|false>    default is false; works only if it is set to true");
 		System.out.println("");
 		System.out.println("");
 		System.out.println("Examples:");
@@ -3002,7 +3024,10 @@ public class GenerateProxy {
 		opt.getSet().addOption("oas", Separator.EQUALS, Multiplicity.ZERO_OR_ONE);
 		// set this flag to enable debug
 		opt.getSet().addOption("debug", Separator.EQUALS, Multiplicity.ZERO_OR_ONE);
+		// add verify allowEmptyNodes policy
+		opt.getSet().addOption("allowEmptyNodes", Separator.EQUALS, Multiplicity.ZERO_OR_ONE);
 
+		
 		opt.check();
 
 		if (opt.getSet().isSet("wsdl")) {
@@ -3080,6 +3105,11 @@ public class GenerateProxy {
 			}
 		}
 
+		if (opt.getSet().isSet("allowEmptyNodes")) {
+			genProxy.setAllowEmptyNodes(new Boolean(opt.getSet().getOption("allowEmptyNodes").getResultValue(0)));
+		}
+
+		
 		if (opt.getSet().isSet("apikey")) {
 			genProxy.setAPIKey(new Boolean(opt.getSet().getOption("apikey").getResultValue(0)));
 			if (opt.getSet().isSet("quota")) {
