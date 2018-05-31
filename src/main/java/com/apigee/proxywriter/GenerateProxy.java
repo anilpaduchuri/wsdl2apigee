@@ -2858,6 +2858,9 @@ public class GenerateProxy {
 				continue;
 			}
 
+			//added this line to resolve conflicts in adding parameters to resources. 
+			queryParams.clear();
+
 			operation = new JsonObject();
 			operationDetails = new JsonObject();
 
